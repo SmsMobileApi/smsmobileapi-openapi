@@ -1,0 +1,11 @@
+extends:
+  - recommended
+
+rules:
+  # These paths match the production API exactly and intentionally retain
+  # their historical trailing slash.
+  no-path-trailing-slash: off
+  # Authentication and validation errors can be returned inside documented
+  # legacy JSON envelopes; endpoint-specific error schemas will be expanded
+  # as the API contract evolves.
+  operation-4xx-response: off
