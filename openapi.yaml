@@ -1,0 +1,592 @@
+openapi: 3.1.0
+info:
+  title: SMSMobileAPI
+  version: 2026-09-23
+  summary: Turn real mobile phones into programmable communication endpoints.
+  description: |
+    SMSMobileAPI connects a mobile phone, its SIM and existing number to software.
+    Use this API to work with SMS, calls, WhatsApp, notifications, e-mail and
+    connected devices. Refer to the public documentation for account-specific
+    capabilities and the latest operational guidance.
+  contact:
+    name: SMSMobileAPI Support
+    url: https://smsmobileapi.com/
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: https://api.smsmobileapi.com
+    description: Production
+externalDocs:
+  description: SMSMobileAPI developer documentation
+  url: https://smsmobileapi.com/documentations-api-smsmobileapi/
+security:
+  - ApiKeyQuery: []
+tags:
+  - name: SMS
+    description: Send, receive and inspect SMS activity.
+  - name: Devices
+    description: Connected mobile gateways.
+  - name: Calls
+    description: Missed, incoming and outgoing call activity.
+  - name: WhatsApp
+    description: Send and consent-based retrieval workflows.
+  - name: Notifications
+    description: Internal notifications delivered to connected mobiles.
+  - name: Email
+    description: Send and retrieve e-mail through configured mailboxes.
+paths:
+  /sendsms/:
+    post:
+      tags: [SMS, WhatsApp]
+      operationId: sendMessage
+      summary: Send an SMS or WhatsApp message
+      description: |
+        Queues a message. Omit `waonly` for SMS. Set `waonly=yes` for WhatsApp-only
+        delivery in a connected WhatsApp environment. A successful response means
+        that the platform accepted the job; delivery remains asynchronous.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [apikey, recipients, message]
+              properties:
+                apikey:
+                  type: string
+                recipients:
+                  type: string
+                  examples: ["+15551234567"]
+                message:
+                  type: string
+                sIdentifiant:
+                  type: string
+                  description: Specific connected mobile SID.
+                port:
+                  type: integer
+                  enum: [1, 2]
+                shorturl:
+                  type: integer
+                  enum: [0, 1]
+                schedule_timestamp:
+                  type: integer
+                  description: UTC Unix timestamp from which the message may be sent.
+                waonly:
+                  type: string
+                  enum: ["yes"]
+                  description: Set to yes for WhatsApp-only delivery.
+                url_media:
+                  type: string
+                  format: uri
+                  description: Public HTTPS media URL for supported WhatsApp media.
+      responses:
+        "200":
+          description: Message accepted or a documented application error returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendMessageResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+  /getsms/:
+    get:
+      tags: [SMS]
+      operationId: listReceivedSms
+      summary: List received SMS
+      parameters:
+        - $ref: "#/components/parameters/AfterTimestamp"
+        - name: sIdentifiantPhone
+          in: query
+          schema: { type: string }
+          description: Filter by receiving mobile SID.
+        - name: onlyunread
+          in: query
+          schema: { type: string, enum: ["yes"] }
+      responses:
+        "200":
+          description: Received SMS list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceivedSmsResponse"
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /log/sent/sms/:
+    get:
+      tags: [SMS]
+      operationId: listSentSms
+      summary: List SMS submitted through the API
+      parameters:
+        - name: guid_message
+          in: query
+          schema: { type: string }
+        - name: keyword
+          in: query
+          schema: { type: string }
+        - name: error_api
+          in: query
+          schema: { type: integer, enum: [0, 1] }
+        - name: error_mobile
+          in: query
+          schema: { type: integer, enum: [0, 1] }
+      responses:
+        "200":
+          description: Sent SMS log.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /gateway/mobile/list/:
+    get:
+      tags: [Devices]
+      operationId: listConnectedMobiles
+      summary: List connected mobile devices
+      parameters:
+        - name: sid
+          in: query
+          schema: { type: string }
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Connected devices and status metadata.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /call/missed/list/:
+    get:
+      tags: [Calls]
+      operationId: listMissedCalls
+      summary: List missed calls
+      parameters:
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit100"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/DateStart"
+        - $ref: "#/components/parameters/DateEnd"
+      responses:
+        "200":
+          description: Missed calls from newest to oldest.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CallListResponse" }
+  /call/incoming/list/:
+    get:
+      tags: [Calls]
+      operationId: listIncomingCalls
+      summary: List answered incoming calls
+      parameters:
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit50"
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Search phone number or cached contact name.
+        - $ref: "#/components/parameters/SortDirection"
+      responses:
+        "200":
+          description: Incoming call activity.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CallRowsResponse" }
+  /call/outgoing/list/:
+    get:
+      tags: [Calls]
+      operationId: listOutgoingCalls
+      summary: List outgoing calls
+      parameters:
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit50"
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Search phone number or cached contact name.
+        - $ref: "#/components/parameters/SortDirection"
+      responses:
+        "200":
+          description: Outgoing call activity.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CallRowsResponse" }
+  /notification/send:
+    post:
+      tags: [Notifications]
+      operationId: sendNotification
+      summary: Send an internal notification to a connected mobile
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [apikey, sid, message]
+              properties:
+                apikey: { type: string }
+                sid: { type: string }
+                title: { type: string, default: Notification }
+                message: { type: string }
+                type: { type: string, default: notification }
+      responses:
+        "200":
+          description: Notification created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationSendResponse" }
+  /notification/list/:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: List notification history
+      parameters:
+        - name: sidentifiant
+          in: query
+          schema: { type: string }
+        - name: distribued
+          in: query
+          schema: { type: integer, enum: [0, 1] }
+        - $ref: "#/components/parameters/DateStart"
+        - $ref: "#/components/parameters/DateEnd"
+      responses:
+        "200":
+          description: Notification distribution history.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /getwa/active/:
+    get:
+      tags: [WhatsApp]
+      operationId: setWhatsAppRetrieval
+      summary: Activate or deactivate WhatsApp message retrieval
+      parameters:
+        - name: statut
+          in: query
+          schema: { type: string, enum: ["0", "1", x], default: x }
+          description: 1 activates, 0 deactivates, x toggles.
+      responses:
+        "200":
+          description: Current retrieval state.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /getwa/synchronisation/:
+    get:
+      tags: [WhatsApp]
+      operationId: requestWhatsAppSynchronization
+      summary: Request a time-limited WhatsApp synchronization window
+      description: Required before retrieving newly received WhatsApp messages.
+      responses:
+        "200":
+          description: Synchronization requested.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsAppSynchronizationResponse" }
+  /getwa/:
+    get:
+      tags: [WhatsApp]
+      operationId: listReceivedWhatsApp
+      summary: Retrieve synchronized WhatsApp messages
+      description: Activate retrieval and request synchronization before calling this endpoint.
+      parameters:
+        - name: before
+          in: query
+          schema: { type: integer }
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+        - name: message_type
+          in: query
+          schema: { type: string, enum: [text, audio] }
+      responses:
+        "200":
+          description: Recovered WhatsApp messages.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /whatsapp/checknumber/:
+    get:
+      tags: [WhatsApp]
+      operationId: checkWhatsAppNumber
+      summary: Check whether a number is available on WhatsApp
+      parameters:
+        - name: recipients
+          in: query
+          required: true
+          schema: { type: string }
+          description: Country code plus number, without + or 00.
+      responses:
+        "200":
+          description: WhatsApp availability result.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /sendemail/:
+    post:
+      tags: [Email]
+      operationId: sendEmail
+      summary: Send e-mail through a configured mailbox
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [apikey, apikeybox, sender_name, sender_email, recipient_email, mail_subject, mail_body, allow_self_signed]
+              properties:
+                apikey: { type: string }
+                apikeybox: { type: string }
+                sender_name: { type: string }
+                sender_email: { type: string, format: email }
+                recipient_email: { type: string, format: email }
+                mail_subject: { type: string }
+                mail_body: { type: string }
+                allow_self_signed: { type: string, enum: ["yes", "no"] }
+                unsubscribe: { type: integer, enum: [1] }
+                attachmentBase64: { type: string, contentEncoding: base64 }
+                attachmentBase64_name_1: { type: string }
+      responses:
+        "200":
+          description: E-mail operation result.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /getemail/:
+    get:
+      tags: [Email]
+      operationId: listEmails
+      summary: Retrieve e-mail from a configured mailbox folder
+      parameters:
+        - name: apikeybox
+          in: query
+          required: true
+          schema: { type: string }
+        - name: mbox
+          in: query
+          required: true
+          schema: { type: string, default: INBOX }
+        - name: start
+          in: query
+          required: true
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Mailbox messages.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+webhooks:
+  mobileEvent:
+    post:
+      operationId: receiveMobileEventWebhook
+      summary: SMSMobileAPI Webhook V2 delivery
+      description: Verify the HMAC-SHA256 signature against the exact raw body and deduplicate the stable event ID.
+      parameters:
+        - name: X-SMSMobileAPI-Event
+          in: header
+          required: true
+          schema: { type: string }
+        - name: X-SMSMobileAPI-Event-ID
+          in: header
+          required: true
+          schema: { type: string, format: uuid }
+        - name: X-SMSMobileAPI-Timestamp
+          in: header
+          required: true
+          schema: { type: integer }
+        - name: X-SMSMobileAPI-Signature
+          in: header
+          required: true
+          schema: { type: string, pattern: "^v1=[a-f0-9]{64}$" }
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WebhookEnvelope" }
+      responses:
+        "202":
+          description: Event accepted for asynchronous processing.
+components:
+  securitySchemes:
+    ApiKeyQuery:
+      type: apiKey
+      in: query
+      name: apikey
+  parameters:
+    Offset:
+      name: offset
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    Limit100:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+    Limit50:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    Search:
+      name: search
+      in: query
+      schema: { type: string }
+    DateStart:
+      name: date_start
+      in: query
+      schema: { type: string, format: date }
+    DateEnd:
+      name: date_end
+      in: query
+      schema: { type: string, format: date }
+    AfterTimestamp:
+      name: after_timestamp_unix
+      in: query
+      schema: { type: integer }
+    SortDirection:
+      name: sort_dir
+      in: query
+      schema: { type: string, enum: [asc, desc], default: desc }
+  responses:
+    BadRequest:
+      description: Missing or invalid parameter.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Forbidden:
+      description: API key invalid, expired or unauthorized.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    TooManyRequests:
+      description: Request rate is too high.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        error:
+          oneOf: [{ type: string }, { type: integer }]
+        message: { type: string }
+    SendMessageResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        result:
+          type: object
+          additionalProperties: true
+          properties:
+            error:
+              oneOf: [{ type: string }, { type: integer }]
+            sent: { type: string }
+            id: { type: string }
+            note: { type: string }
+            datetime: { type: string, format: date-time }
+            send_with_whatsapp: { type: string }
+    ReceivedSmsResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        result:
+          type: object
+          additionalProperties: true
+          properties:
+            error: { type: string }
+            sms:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+                properties:
+                  id: { type: integer }
+                  sIdentifiantPhone: { type: string }
+                  timestamp_unix: { type: integer }
+                  message: { type: string }
+                  number: { type: string }
+                  guid: { type: string }
+                  alias: { type: [string, "null"] }
+    CallListResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        success: { type: boolean }
+        offset: { type: integer }
+        limit: { type: integer }
+        count: { type: integer }
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/CallRecord" }
+    CallRowsResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        success: { type: boolean }
+        count: { type: integer }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/CallRecord" }
+    CallRecord:
+      type: object
+      additionalProperties: true
+      properties:
+        number: { type: string }
+        phone_number: { type: string }
+        name: { type: [string, "null"] }
+        cached_name: { type: [string, "null"] }
+        date: { type: string }
+        call_datetime_utc: { type: string }
+        duration_sec: { type: integer }
+    NotificationSendResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        id: { type: integer }
+        apikey: { type: string }
+        sid: { type: string }
+    WhatsAppSynchronizationResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        error: { type: string }
+        messages: { type: string }
+        expire_at: { type: string }
+        expire_at_unix: { type: string }
+    WebhookEnvelope:
+      type: object
+      required: [id, type, api_version, created_at, occurred_at, data]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        type:
+          type: string
+          enum:
+            - sms.api.submitted
+            - sms.sent
+            - sms.failed
+            - sms.received
+            - sms.mobile.sent
+            - call.missed
+            - call.incoming
+            - call.outgoing
+            - whatsapp.submitted
+            - whatsapp.sent
+            - whatsapp.failed
+            - whatsapp.received
+            - whatsapp.voice.transcribed
+            - email.sent
+            - email.received
+        api_version: { type: string }
+        created_at: { type: string, format: date-time }
+        occurred_at: { type: string, format: date-time }
+        data:
+          type: object
+          additionalProperties: true
