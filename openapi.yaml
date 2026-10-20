@@ -384,23 +384,41 @@ webhooks:
         - name: X-SMSMobileAPI-Event
           in: header
           required: true
-          schema: { type: string }
+          description: Event type delivered by SMSMobileAPI.
+          schema:
+            type: string
+            example: sms.received
         - name: X-SMSMobileAPI-Event-ID
           in: header
           required: true
-          schema: { type: string, format: uuid }
+          description: Stable delivery identifier supplied by SMSMobileAPI. Do not hard-code or reuse it.
+          schema:
+            type: string
+            format: uuid
+            example: "{{$guid}}"
         - name: X-SMSMobileAPI-Timestamp
           in: header
           required: true
-          schema: { type: integer }
+          description: Unix timestamp used when verifying the webhook signature.
+          schema:
+            type: integer
+            example: 1700000000
         - name: X-SMSMobileAPI-Signature
           in: header
           required: true
-          schema: { type: string, pattern: "^v1=[a-f0-9]{64}$" }
+          description: HMAC-SHA256 signature calculated by SMSMobileAPI for this delivery.
+          schema:
+            type: string
+            pattern: "^v1=[a-f0-9]{64}$"
+            example: "v1={{computed_hmac_sha256}}"
         - name: Idempotency-Key
           in: header
           required: true
-          schema: { type: string, format: uuid }
+          description: Stable idempotency identifier supplied for this delivery. Do not hard-code or reuse it.
+          schema:
+            type: string
+            format: uuid
+            example: "{{$guid}}"
       requestBody:
         required: true
         content:
@@ -565,7 +583,11 @@ components:
       required: [id, type, api_version, created_at, occurred_at, data]
       additionalProperties: false
       properties:
-        id: { type: string, format: uuid }
+        id:
+          type: string
+          format: uuid
+          description: Stable event identifier supplied by SMSMobileAPI.
+          example: "{{$guid}}"
         type:
           type: string
           enum:
@@ -590,3 +612,4 @@ components:
         data:
           type: object
           additionalProperties: true
+
