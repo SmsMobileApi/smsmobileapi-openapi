@@ -18,6 +18,14 @@ SMSMobileAPI connects a real mobile phone—with its SIM and existing number—t
 
 The authoritative human-readable documentation remains available at [smsmobileapi.com](https://smsmobileapi.com/documentations-api-smsmobileapi/).
 
+## Use the API contract
+
+- [Download the canonical OpenAPI 3.1 YAML](https://smsmobileapi.com/assets/openapi/smsmobileapi-openapi.yaml)
+- [Explore the public Postman workspace](https://www.postman.com/mailbridgeapi/smsmobileapi/overview)
+- [View SMSMobileAPI on RapidAPI](https://rapidapi.com/sellviaapp/api/smsmobileapi1)
+
+The published contract contains placeholders only. Never add a real API key, webhook signing secret, account credential or customer payload to an example.
+
 ## Files
 
 | File | Purpose |
@@ -63,6 +71,7 @@ Most endpoints use the account API key in the `apikey` query parameter or form f
 - Use international phone-number format.
 - WhatsApp retrieval requires activation and an explicit synchronization request before `/getwa/`.
 - Webhook V2 uses at-least-once delivery; deduplicate the stable event ID.
+- Webhook UUID and signature examples use safe placeholders so generated API clients and public collections never embed credential-like values.
 - API capabilities depend on account configuration, subscription, connected devices and mobile permissions.
 
 ## Related repositories
@@ -76,3 +85,4 @@ Most endpoints use the account API key in the `apikey` query parameter or form f
 Open an issue when the specification differs from the documented production behavior. Include the endpoint and a sanitized example, never credentials or customer data.
 
 Released under the MIT License.
+
