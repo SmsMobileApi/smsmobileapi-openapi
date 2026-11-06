@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
   title: SMSMobileAPI
-  version: 2026-09-23
+  version: 2026-11-06
   summary: Turn real mobile phones into programmable communication endpoints.
   description: |
     SMSMobileAPI connects a mobile phone, its SIM and existing number to software.
-    Use this API to work with SMS, calls, WhatsApp, notifications, e-mail and
+    Use this API to work with SMS, calls, WhatsApp, Telegram, notifications, e-mail and
     connected devices. Refer to the public documentation for account-specific
     capabilities and the latest operational guidance.
   contact:
@@ -35,6 +35,8 @@ tags:
     description: Internal notifications delivered to connected mobiles.
   - name: Email
     description: Send and retrieve e-mail through configured mailboxes.
+  - name: Telegram
+    description: Send through each customer's connected Telegram account.
 paths:
   /sendsms/:
     post:
@@ -374,6 +376,104 @@ paths:
           content:
             application/json:
               schema: { type: object, additionalProperties: true }
+  /telegram/contacts/:
+    get:
+      tags: [Telegram]
+      operationId: listTelegramContacts
+      summary: List contacts of the connected Telegram account
+      description: Synchronize contacts in the dashboard first. Returns account-scoped contact IDs ordered oldest first.
+      security: [{ ApiKeyHeader: [] }]
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 80 }
+          description: Optional display-name or username search.
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: cursor
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+          description: paging.next_cursor returned by the previous page.
+      responses:
+        "200":
+          description: Contact page.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramContactsResponse" }
+        "401": { $ref: "#/components/responses/Forbidden" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/BadRequest" }
+  /telegram/send/:
+    post:
+      tags: [Telegram]
+      operationId: sendTelegramMessage
+      summary: Queue a message to one Telegram contact
+      description: HTTP 202 means queued, not delivered. Repeating the same idempotency key and payload returns the original message ID with HTTP 200.
+      security: [{ ApiKeyHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contact_id, message]
+              properties:
+                contact_id: { type: integer, minimum: 1 }
+                message: { type: string, minLength: 1, maxLength: 4096 }
+                idempotency_key: { type: string, format: uuid, description: Reuse this value when retrying a network timeout. }
+      responses:
+        "202":
+          description: Message queued for asynchronous sending.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramSendResponse" }
+        "200":
+          description: Exact idempotent retry of an existing message.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramSendResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Forbidden" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/BadRequest" }
+        "422": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+  /telegram/sent/:
+    get:
+      tags: [Telegram]
+      operationId: listTelegramSentMessages
+      summary: List recent Telegram sends and their status
+      description: Sent means Telegram accepted the message; delivery and read receipts are not available.
+      security: [{ ApiKeyHeader: [] }]
+      parameters:
+        - name: message_id
+          in: query
+          schema: { type: integer, minimum: 1 }
+          description: Exact message ID returned by the send endpoint.
+        - name: contact_id
+          in: query
+          schema: { type: integer, minimum: 1 }
+          description: Limit the log to one contact.
+        - name: status
+          in: query
+          schema: { type: string, enum: [queued, sending, sent, error, unknown] }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: cursor
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+          description: paging.next_cursor returned by the previous page.
+      responses:
+        "200":
+          description: Message log page, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramSentResponse" }
+        "401": { $ref: "#/components/responses/Forbidden" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/BadRequest" }
 webhooks:
   mobileEvent:
     post:
@@ -433,6 +533,10 @@ components:
       type: apiKey
       in: query
       name: apikey
+    ApiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-SMSMobileAPI-Key
   parameters:
     Offset:
       name: offset
@@ -486,6 +590,61 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/ErrorResponse" }
   schemas:
+    TelegramPaging:
+      type: object
+      required: [has_more, next_cursor]
+      properties:
+        has_more: { type: boolean }
+        next_cursor: { type: [integer, "null"] }
+    TelegramContactsResponse:
+      type: object
+      required: [ok, data, paging]
+      properties:
+        ok: { type: boolean, const: true }
+        data:
+          type: array
+          items:
+            type: object
+            required: [contact_id, display_name, username, source]
+            properties:
+              contact_id: { type: integer }
+              display_name: { type: string }
+              username: { type: [string, "null"] }
+              source: { type: string }
+        paging: { $ref: "#/components/schemas/TelegramPaging" }
+    TelegramSendResponse:
+      type: object
+      required: [ok, message_id, status, idempotency_key, duplicate]
+      properties:
+        ok: { type: boolean, const: true }
+        message_id: { type: integer }
+        status: { type: string, enum: [queued, sending, sent, error, unknown] }
+        idempotency_key: { type: string }
+        duplicate: { type: boolean }
+    TelegramSentResponse:
+      type: object
+      required: [ok, data, paging]
+      properties:
+        ok: { type: boolean, const: true }
+        data:
+          type: array
+          items:
+            type: object
+            required: [message_id, contact_id, message, status, attempts, queued_at]
+            properties:
+              message_id: { type: integer }
+              contact_id: { type: integer }
+              contact_name: { type: [string, "null"] }
+              username: { type: [string, "null"] }
+              message: { type: string }
+              status: { type: string, enum: [queued, sending, sent, error, unknown] }
+              telegram_message_id: { type: [integer, "null"] }
+              error_code: { type: [string, "null"] }
+              error_detail: { type: [string, "null"] }
+              attempts: { type: integer }
+              queued_at: { type: string, format: date-time }
+              sent_at: { type: [string, "null"], format: date-time }
+        paging: { $ref: "#/components/schemas/TelegramPaging" }
     ErrorResponse:
       type: object
       additionalProperties: true
