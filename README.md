@@ -82,6 +82,7 @@ Most endpoints use the account API key in the `apikey` query parameter or form f
 - [API examples](https://github.com/SmsMobileApi/smsmobileapi-api-examples)
 - [Postman collection](https://github.com/SmsMobileApi/smsmobileapi-postman)
 - [Webhook examples](https://github.com/SmsMobileApi/smsmobileapi-webhook-examples)
+- [Telegram connection and API examples](https://github.com/SmsMobileApi/smsmobileapi-telegram)
 
 ## Contributing
 
