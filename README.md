@@ -13,6 +13,7 @@ SMSMobileAPI connects a real mobile phone—with its SIM and existing number—t
 - Send WhatsApp messages through `/sendsms/` with `waonly=yes`.
 - Activate and request consent-based WhatsApp synchronization.
 - Retrieve synchronized WhatsApp messages.
+- Connect each customer's Telegram account by QR code, synchronize contacts, send text messages and inspect the sending log.
 - Send and retrieve e-mail through configured mailboxes.
 - Understand the common Webhook V2 event envelope.
 
@@ -30,7 +31,8 @@ The published contract contains placeholders only. Never add a real API key, web
 
 | File | Purpose |
 | --- | --- |
-| [`openapi.yaml`](openapi.yaml) | OpenAPI 3.1 API and webhook contract. |
+| [`openapi.yaml`](openapi.yaml) | OpenAPI 3.1 API and webhook contract, including Telegram. |
+| [`docs/telegram.md`](docs/telegram.md) | Telegram connection, sending examples, statuses and limits. |
 | [`examples/variables.env`](examples/variables.env) | Non-secret environment variable template. |
 
 ## Preview locally
@@ -57,7 +59,7 @@ Replace `php` with a supported generator such as `python`, `typescript-fetch`, `
 
 ## Authentication
 
-Most endpoints use the account API key in the `apikey` query parameter or form field. The specification models it as `ApiKeyQuery`.
+Most endpoints use the account API key in the `apikey` query parameter or form field. The specification models it as `ApiKeyQuery`. Telegram uses the `X-SMSMobileAPI-Key` header instead, modeled as `ApiKeyHeader`; see the [Telegram guide](docs/telegram.md).
 
 - Store the API key in a protected server-side secret.
 - Do not embed it in public JavaScript or mobile binaries.
@@ -70,6 +72,7 @@ Most endpoints use the account API key in the `apikey` query parameter or form f
 - Prefer `POST` for messages, e-mail bodies and special characters.
 - Use international phone-number format.
 - WhatsApp retrieval requires activation and an explicit synchronization request before `/getwa/`.
+- Telegram sending requires QR-code connection and contact synchronization. HTTP 202 means queued; use `/telegram/sent/` to check the outcome.
 - Webhook V2 uses at-least-once delivery; deduplicate the stable event ID.
 - Webhook UUID and signature examples use safe placeholders so generated API clients and public collections never embed credential-like values.
 - API capabilities depend on account configuration, subscription, connected devices and mobile permissions.
