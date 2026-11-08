@@ -100,6 +100,22 @@ curl -L 'https://api.smsmobileapi.com/telegram/media/?message_id=123' \
 
 The media endpoint serves **sent** attachments only. A signed download URL can be opened without the API key while it remains valid; treat it as a secret.
 
+## React to Telegram events with Webhook V2
+
+In [Webhook Center](https://dashboard.smsmobileapi.com/webhook-v2/), add an HTTPS destination and select the Telegram events your application needs:
+
+| Event | Meaning |
+| --- | --- |
+| `telegram.submitted` | A sending job was queued; it has not yet been sent. |
+| `telegram.sent` | Telegram accepted the send from the connected account. This is not a recipient delivery receipt. |
+| `telegram.failed` | The send failed; inspect `data.error_code` and `data.error_detail`. |
+| `telegram.unknown` | The outcome is uncertain. Check Telegram before retrying. |
+| `telegram.received` | A new private message was captured while reception was enabled. |
+
+The signed JSON envelope has a stable `id`, `type`, `occurred_at` and event-specific `data`. For `telegram.received`, `data` includes the inbox `message_id`, Telegram peer and message IDs, text or caption, message type, and any media metadata. `contact_id` is included when the sender is available in your synchronized contacts; use it with `POST /telegram/send/` to reply. A received attachment's bytes are not included. Reception is off by default, and messages from a paused interval are not replayed.
+
+Verify `X-SMSMobileAPI-Signature` against the exact request body and timestamp, save the event ID to deduplicate retries, then acknowledge with HTTP 2xx. See the [Webhook V2 guide](https://smsmobileapi.com/webhook/) and [sample receivers](https://github.com/SmsMobileApi/smsmobileapi-webhook-examples).
+
 ## Limits and errors
 
 - One recipient per request; up to 15 new messages per minute and 30 queued messages per connected account. Respect Telegram rules and recipient consent.
