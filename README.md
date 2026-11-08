@@ -15,7 +15,7 @@ SMSMobileAPI connects a real mobile phone—with its SIM and existing number—t
 - Retrieve synchronized WhatsApp messages.
 - Connect each customer's Telegram account by QR code, synchronize contacts, send text, images and files, read new private messages when enabled, and inspect the sending log.
 - Send and retrieve e-mail through configured mailboxes.
-- Understand the common Webhook V2 event envelope.
+- Understand the common Webhook V2 event envelope, including Telegram queued, sent, failed, uncertain and received events.
 
 The authoritative human-readable documentation remains available at [smsmobileapi.com](https://smsmobileapi.com/documentations-api-smsmobileapi/).
 
