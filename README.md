@@ -13,7 +13,7 @@ SMSMobileAPI connects a real mobile phone—with its SIM and existing number—t
 - Send WhatsApp messages through `/sendsms/` with `waonly=yes`.
 - Activate and request consent-based WhatsApp synchronization.
 - Retrieve synchronized WhatsApp messages.
-- Connect each customer's Telegram account by QR code, synchronize contacts, send text messages and inspect the sending log.
+- Connect each customer's Telegram account by QR code, synchronize contacts, send text, images and files, read new private messages when enabled, and inspect the sending log.
 - Send and retrieve e-mail through configured mailboxes.
 - Understand the common Webhook V2 event envelope.
 
@@ -32,7 +32,7 @@ The published contract contains placeholders only. Never add a real API key, web
 | File | Purpose |
 | --- | --- |
 | [`openapi.yaml`](openapi.yaml) | OpenAPI 3.1 API and webhook contract, including Telegram. |
-| [`docs/telegram.md`](docs/telegram.md) | Telegram connection, sending examples, statuses and limits. |
+| [`docs/telegram.md`](docs/telegram.md) | Telegram connection, text and file sending, received messages, sent media, statuses and limits. |
 | [`examples/variables.env`](examples/variables.env) | Non-secret environment variable template. |
 
 ## Preview locally
@@ -72,7 +72,8 @@ Most endpoints use the account API key in the `apikey` query parameter or form f
 - Prefer `POST` for messages, e-mail bodies and special characters.
 - Use international phone-number format.
 - WhatsApp retrieval requires activation and an explicit synchronization request before `/getwa/`.
-- Telegram sending requires QR-code connection and contact synchronization. HTTP 202 means queued; use `/telegram/sent/` to check the outcome.
+- Telegram sending requires QR-code connection and contact synchronization. HTTP 202 means queued; use `/telegram/sent/` to check the outcome and `/telegram/media/` to download sent attachments.
+- Telegram message reception is optional and off by default. Enable it on the connection page, then read new private messages through `/telegram/received/`. Paused messages are not imported later.
 - Webhook V2 uses at-least-once delivery; deduplicate the stable event ID.
 - Webhook UUID and signature examples use safe placeholders so generated API clients and public collections never embed credential-like values.
 - API capabilities depend on account configuration, subscription, connected devices and mobile permissions.
