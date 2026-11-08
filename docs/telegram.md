@@ -1,24 +1,23 @@
-# Telegram connection and API
+# Telegram connection and REST API
 
-Connect your own Telegram account to SMSMobileAPI, synchronize its contacts, send a text message from that account, and inspect the sending log. Each SMSMobileAPI customer authorizes their own Telegram account; SMSMobileAPI does not provide a shared sender.
+Connect your own Telegram account to SMSMobileAPI. Your application can find contacts, send text, images or documents, inspect sending status and read new private messages. Each customer connects their own Telegram account by QR code; SMSMobileAPI does not supply a shared sender.
 
-## Connect and send your first message
+## Connect the account
 
-1. In the dashboard, open [Telegram → Connection](https://dashboard.smsmobileapi.com/telegram-connect/) and start the QR-code connection.
-2. In your Telegram mobile app, open **Settings → Devices → Link Desktop Device** and scan the QR code. Complete any Telegram confirmation requested on your phone.
-3. Open [Telegram → Contacts](https://dashboard.smsmobileapi.com/telegram-contacts/) and synchronize contacts. You can also add a saved `@username` there. Use the resulting `contact_id` for API sends.
-4. Open [My API Key](https://dashboard.smsmobileapi.com/my-api-key/) and store your SMSMobileAPI API key in a protected server-side secret. The Telegram endpoints can be enabled or disabled individually there.
-5. Send from [Telegram → Send a message](https://dashboard.smsmobileapi.com/telegram-send/) or through the API below. Check [Telegram → Sending log](https://dashboard.smsmobileapi.com/telegram-logs/) for the outcome.
+1. Open [Telegram Connection](https://dashboard.smsmobileapi.com/telegram-connect/) and generate a QR code. Choose whether SMSMobileAPI should retrieve received private messages. This is **optional and off by default**.
+2. In Telegram on your phone, open **Settings → Devices → Link Desktop Device** and scan the QR code. Complete any confirmation requested by Telegram.
+3. Open [Telegram Contacts](https://dashboard.smsmobileapi.com/telegram-contacts/) and synchronize contacts, or add a public `@username` manually.
+4. Get the API key from [My API Key](https://dashboard.smsmobileapi.com/my-api-key/) and keep it on your server. Telegram endpoints can be enabled or disabled separately there.
 
-One Telegram account can be connected to each SMSMobileAPI account. Disconnect it from the dashboard whenever needed.
+You can change message reception at any time on the connection page. Turning it off stops new imports. Messages received during the pause are **not** imported later. Messages saved earlier remain in the [received history](https://dashboard.smsmobileapi.com/telegram-received/) until you clear it. Contact synchronization and sending remain available when reception is off.
 
-## API authentication
+## Authentication and base URL
 
-Base URL: `https://api.smsmobileapi.com`
+Use `https://api.smsmobileapi.com` and send `X-SMSMobileAPI-Key: YOUR_API_KEY` in the HTTPS header. Unlike several SMSMobileAPI endpoints, these Telegram endpoints do not use the `apikey` query parameter. Keep the key out of public JavaScript, repositories, URLs and logs.
 
-Send your account API key in the `X-SMSMobileAPI-Key` HTTPS request header for **all three Telegram endpoints**. Keep the key out of browser code, public repositories, screenshots, and logs. These endpoints use the header, while several other SMSMobileAPI endpoints use an `apikey` parameter.
+The examples below use placeholders only. A current SMSMobileAPI subscription and a connected Telegram account are required.
 
-### 1. Find a contact
+## Find a contact
 
 ```bash
 curl -G 'https://api.smsmobileapi.com/telegram/contacts/' \
@@ -31,26 +30,57 @@ curl -G 'https://api.smsmobileapi.com/telegram/contacts/' \
 {"ok":true,"data":[{"contact_id":42,"display_name":"Alex Example","username":"alex_example","source":"telegram"}],"paging":{"has_more":false,"next_cursor":null}}
 ```
 
-The optional `q` searches display names and usernames. Use `limit` (1–100, default 50) and `cursor` / `paging.next_cursor` for pagination. A contact ID is scoped to the connected SMSMobileAPI account; it cannot be reused across customers. Synchronize contacts again when a new contact is missing.
+`q` searches names or usernames. `limit` is 1–100, default 50. Pass `paging.next_cursor` as `cursor` to continue. Contact IDs belong to the connected SMSMobileAPI account.
 
-### 2. Send a text message
+## Send text
 
 ```bash
 curl -X POST 'https://api.smsmobileapi.com/telegram/send/' \
   -H 'X-SMSMobileAPI-Key: YOUR_API_KEY' \
   -H 'Content-Type: application/json' \
-  -d '{"contact_id":42,"message":"Your appointment is confirmed."}'
+  -d '{"contact_id":42,"message":"Your appointment is confirmed.","idempotency_key":"2d40bb10-cc42-4c30-a282-93fc6dd8e161"}'
+```
+
+`message` allows 1–4096 characters, up to 16,000 UTF-8 bytes. The response uses HTTP 202 with `status: "queued"` and a `message_id`; this is **not** a delivery receipt. Generate one lowercase UUID-style `idempotency_key` for each intended send. Reuse the same key **and payload** when retrying after a timeout. An exact retry returns HTTP 200 and `duplicate: true`; a changed payload with the same key returns HTTP 409.
+
+## Send an image or document
+
+Use `multipart/form-data` with one `file`. Let your HTTP client set the multipart boundary:
+
+```bash
+curl -X POST 'https://api.smsmobileapi.com/telegram/send/' \
+  -H 'X-SMSMobileAPI-Key: YOUR_API_KEY' \
+  -F 'contact_id=42' \
+  -F 'message=Here is the document.' \
+  -F 'file=@./document.pdf' \
+  -F 'idempotency_key=66ab13f1-f451-4077-afdd-a7fdcaab3481'
+```
+
+JSON clients may instead provide `filename` and `file_base64` (raw Base64 or a data URI) with `contact_id`, an optional `message` caption and an optional `idempotency_key`:
+
+```json
+{"contact_id":42,"filename":"photo.png","file_base64":"BASE64_ENCODED_FILE","message":"See attached","idempotency_key":"cfcd44f1-4488-4519-95ac-5f7e04b52496"}
+```
+
+Supported files: JPG, PNG, WebP, PDF, TXT, CSV, JSON, ZIP, DOCX, XLSX and PPTX, up to **5 MB**. A caption can contain up to 1024 characters. Use multipart upload when possible to avoid Base64 overhead. The response is queued just like a text send.
+
+## Read received private messages
+
+Message reception must first be enabled on the [connection page](https://dashboard.smsmobileapi.com/telegram-connect/).
+
+```bash
+curl -G 'https://api.smsmobileapi.com/telegram/received/' \
+  -H 'X-SMSMobileAPI-Key: YOUR_API_KEY' \
+  --data-urlencode 'limit=50'
 ```
 
 ```json
-{"ok":true,"message_id":123,"status":"queued","idempotency_key":"GENERATED_UUID_V4","duplicate":false}
+{"ok":true,"data":[{"message_id":8,"telegram_peer_id":123456,"telegram_message_id":82,"telegram_sender_id":123456,"sender_name":"Alex Example","username":"alex_example","message":"Hello!","type":"text","media":null,"received_at":"2026-11-08T10:00:00+00:00","captured_at":"2026-11-08T10:00:05+00:00"}],"paging":{"has_more":false,"next_cursor":null}}
 ```
 
-`contact_id` and `message` are required. The text must contain 1–4096 characters and at most 16,000 UTF-8 bytes. For reliable retries, also provide an optional `idempotency_key`: generate a new lowercase UUID v4 for each intended message and reuse **the same key and payload** after a timeout. An exact retry returns HTTP 200, `duplicate: true`, and the original `message_id`; changing the payload with the same key returns HTTP 409.
+The newest entries come first. Use `telegram_peer_id` to filter one private chat, `limit` from 1 to 100, and `cursor` / `paging.next_cursor` for older entries. Self messages, groups, channels and older history are excluded. For a received image or file, `type`, caption and file metadata are returned; **the received file bytes and a download URL are not available** in this release.
 
-HTTP 202 means **queued**, not sent or delivered. Save `message_id` and inspect the sending log.
-
-### 3. Check the sending log
+## Track sent messages and download sent files
 
 ```bash
 curl -G 'https://api.smsmobileapi.com/telegram/sent/' \
@@ -58,17 +88,23 @@ curl -G 'https://api.smsmobileapi.com/telegram/sent/' \
   --data-urlencode 'message_id=123'
 ```
 
-```json
-{"ok":true,"data":[{"message_id":123,"contact_id":42,"contact_name":"Alex Example","username":"alex_example","message":"Your appointment is confirmed.","status":"sent","telegram_message_id":781,"error_code":null,"error_detail":null,"attempts":1,"queued_at":"2026-11-06T09:42:00+00:00","sent_at":"2026-11-06T09:42:04+00:00"}],"paging":{"has_more":false,"next_cursor":null}}
+The response lists `status` (`queued`, `sending`, `sent`, `error` or `unknown`), attempts, Telegram message ID, timestamps, `type` (`text`, `image` or `file`) and `media` metadata when an attachment exists. Optional filters are `contact_id`, `status`, `limit` (1–100) and `cursor`. `sent` means Telegram accepted the send; recipient delivery and read receipts are not reported. Do not blindly retry an `unknown` outcome.
+
+Sent attachments remain in private storage for up to 90 days. The sent log provides a signed `media.download_url` valid for 15 minutes. Request the log again for a fresh link, or use the authenticated endpoint:
+
+```bash
+curl -L 'https://api.smsmobileapi.com/telegram/media/?message_id=123' \
+  -H 'X-SMSMobileAPI-Key: YOUR_API_KEY' \
+  -o attachment
 ```
 
-Optional filters: `message_id`, `contact_id`, `status` (`queued`, `sending`, `sent`, `error`, `unknown`), `limit` (1–100), and `cursor`. Results are newest first. `sent` means Telegram accepted the message from the connected account. Recipient delivery and read receipts are not reported. If the state is `unknown`, the result could not be confirmed; do not blindly resend.
+The media endpoint serves **sent** attachments only. A signed download URL can be opened without the API key while it remains valid; treat it as a secret.
 
-## Limits and common errors
+## Limits and errors
 
-- A request sends to **one synchronized contact** or saved username at a time. This is currently a text sending and sending-history integration; receiving Telegram messages is not yet exposed by these endpoints.
-- The current limit is 15 new messages per minute and 30 queued messages per connected account. Telegram rules and recipient consent still apply.
-- HTTP 401: missing or invalid API key. HTTP 403: endpoint disabled in My API Key. HTTP 404: contact not found in this account.
-- HTTP 409: Telegram not connected or idempotency conflict. HTTP 422: invalid message or pagination. HTTP 429: queue or rate limit. HTTP 503: service temporarily unavailable.
+- One recipient per request; up to 15 new messages per minute and 30 queued messages per connected account. Respect Telegram rules and recipient consent.
+- HTTP 401: missing or invalid key. HTTP 402: subscription expired. HTTP 403: endpoint disabled. HTTP 404: contact or file not found.
+- HTTP 409: account not connected or idempotency conflict. HTTP 413/415/422: invalid size, type or input. HTTP 429: rate or queue limit. HTTP 503: temporary service or storage issue.
 
-See the [interactive Telegram API documentation](https://smsmobileapi.com/doc-telegram/), [Telegram overview](https://smsmobileapi.com/telegram/), and the [OpenAPI contract](../openapi.yaml) for the request and response schemas.
+See the [interactive Telegram API guide](https://smsmobileapi.com/doc-telegram/), the [Telegram overview](https://smsmobileapi.com/telegram/) and the [OpenAPI contract](../openapi.yaml).
+
