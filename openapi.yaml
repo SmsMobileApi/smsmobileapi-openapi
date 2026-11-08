@@ -910,6 +910,11 @@ components:
             - whatsapp.failed
             - whatsapp.received
             - whatsapp.voice.transcribed
+            - telegram.submitted
+            - telegram.sent
+            - telegram.failed
+            - telegram.unknown
+            - telegram.received
             - email.sent
             - email.received
         api_version: { type: string }
